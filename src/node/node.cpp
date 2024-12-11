@@ -1,15 +1,25 @@
 #include "node.hpp"
+#include "../graph/graph.hpp"
+#include "../graph/chunk.hpp"
+#include "../path/path_finder.hpp"
 #include <cmath>
 
-Node::Node(const uint32_t& i, const float& xx, const float& yy)
+Node::Node(const int16_t& i, const float& xx, const float& yy)
     : index{i}, x{xx}, y{yy}{
 }
 
 Node::~Node(){
 }
 
-uint32_t Node::getIndex(){
+int16_t Node::getIndex(){
     return index;
+}
+
+Chunk* Node::getChunk(){
+    int chunkX = (int)std::floor(x) >> 4;
+    int chunkY = (int)std::floor(y) >> 4;
+    int64_t chunkIndex = ((chunkX << 16) | ((chunkY) & 0xffff));
+    return PathFinder::getInstance()->getGraph()->getChunk(chunkIndex);
 }
 
 float Node::getX(){
@@ -34,6 +44,10 @@ bool Node::hasConnection(Node* node){
     return connections.contains(node->getIndex());
 }
 
-uint32_t Node::getTotalConnections(){
+std::unordered_map<int16_t, bool>& Node::getConnections(){
+    return connections;
+}
+
+int16_t Node::getTotalConnections(){
     return connections.size();
 }

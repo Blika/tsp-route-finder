@@ -3,9 +3,10 @@
 #include <stdint.h>
 #include <unordered_map>
 
+class Chunk;
 class Node{
     public:
-        Node(const uint32_t& index, const float& x, const float& y);
+        Node(const int16_t& index, const float& x, const float& y);
         ~Node();
 
         Node(const Node&) = delete;
@@ -13,16 +14,18 @@ class Node{
         Node(Node&&) = delete;
         Node &operator=(Node&&) = delete;
 
-        uint32_t getIndex();
+        int16_t getIndex();
+        Chunk* getChunk();
         float getX();
         float getY();
         float distance(Node* node);
         void addConnection(Node* node);
         bool hasConnection(Node* node);
-        uint32_t getTotalConnections();
+        std::unordered_map<int16_t, bool>& getConnections();
+        int16_t getTotalConnections();
 
     private:
-        uint32_t index;
+        int16_t index;
         float x,y;
-        std::unordered_map<uint32_t, bool> connections;
+        std::unordered_map<int16_t, bool> connections;
 };
