@@ -18,3 +18,5 @@ Since we cached all possible paths between nodes in every chunk, all we need to 
 If we visited all the chunks and ended up in a wrong one, we use Dijkstra's algorithm to reach our final destination.</br>
 
 Found path would not be the best one, but optimal still.
+
+You can also opt to use a faster algorithm that picks one path instantly. It is not going to be optimal, but at least it is found fast enough.
