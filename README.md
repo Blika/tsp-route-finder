@@ -1,13 +1,20 @@
 # tsp-route-finder
-Travelling Salesman Problem solution, Dijkstra's algorithm used.
+TSP solution.
 Gnuplot is required.
 
+# System requirements
+Modern high-core CPU (good DRAM controller and solid L3 cache capacity and speed) is advised.
+
 # What does it do?
-It generated 100 nodes inside of a circle. Each node is connected to 2-6 nearby nodes.
+It generates 100 nodes inside of a circle. Each node is connected to 2-6 nearby nodes.
 Once they all have been connected, you are shown a plot with all possible routes. You can only travel between nodes that are connected to each other.
 
-Using CLI you can choose a starting node and your destination. Then, using Dijkstra's algorithm, the best path is shown to you on a plot.
-Keep in mind that sometimes there are small "islands" of nodes that are not connected to the "mainland". These "islands" are unreachable from the "mainland", and vice-versa.
+Using CLI you can choose a starting node and your destination. After some time, you are shown an optimal path to visit all existing nodes.
 
-# Bugs
-After picking the destination node and resizing Gnuplot's window, the first plot with all the routes may disappear on some systems. This bug is on Gnuplot's side.
+# Algorithm
+Iterating through each possible path is pretty time consuming (provided we have 100 nodes). Instead we divide the circle by chunks.
+For each chunk we calculate and store each possible best path between all nodes inside that chunk. We also store chuks' connections to each other.
+Since we cached all possible paths between nodes in every chunk, all we need to do is to find the best path of chunks.
+If we visited all the chunks and ended up in a wrong one, we use Dijkstra's algorithm to reach our final destination.
+
+Found path would not be the best one, but optimal still.
