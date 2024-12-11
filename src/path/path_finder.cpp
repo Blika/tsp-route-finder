@@ -93,25 +93,28 @@ std::pair<int16_t, std::vector<int64_t>> PathFinder::findChunkPath(int64_t curre
         return std::pair<int16_t,std::vector<int64_t>>(distance,path);
     }
     Chunk* chunk = graph->getChunk(currentChunk);
-    std::pair<int16_t,std::vector<int64_t>> foundPath(minDistance,{});
+    std::pair<int16_t,std::vector<int64_t>> foundPath(0,{});
     for(auto&[k,v]: chunk->connections){
         if(k == prevChunk && graph->getChunk(currentChunk)->connections.size() > 1) continue;
         if(visitedChunks.contains(k) && (visitedChunks[k] > 2 || (visitedChunks[currentChunk] > 1))) continue;
-        auto p = findChunkPath(k, endPoint, currentChunk, distance + 1, visitedChunks, path, foundPath.first);
-        if(foundPath.first == 0 || (p.first > 0 && p.first < minDistance)){
+        auto p = findChunkPath(k, endPoint, currentChunk, distance + 1, visitedChunks, path, minDistance);
+        if(minDistance == 0 || (p.first > 0 && p.first < minDistance)){
             foundPath.first = p.first;
             foundPath.second = p.second;
+            minDistance = p.first;
         }
     }
     return foundPath;
 }
 
-void PathFinder::visitAll(int16_t currentNode, const int16_t& endPoint, float distance, std::unordered_map<int64_t, bool> unvisitedChunks, std::vector<int16_t> path){
+void PathFinder::visitAll(int16_t currentNode, const int16_t& endPoint, float distance, std::unordered_map<int64_t, bool> visitedChunks, int16_t chunksCount, std::vector<int16_t> path, bool breakAlg){
     if((foundPath.first > 0.f && foundPath.first <= distance) || distance >= (graph->getTotalDistance() * 2)) return;
+    //std::cout << chunksCount << '\n';
     Chunk* currentChunk = graph->getNode(currentNode)->getChunk();
-    unvisitedChunks.erase(currentChunk->getIndex());
+    if(!visitedChunks[currentChunk->getIndex()]) chunksCount++;
+    visitedChunks[currentChunk->getIndex()] = true;
     path.push_back(currentNode);
-    if(unvisitedChunks.size() == 0){
+    if(visitedChunks.size() <= chunksCount){
         Chunk* endChunk = graph->getNode(endPoint)->getChunk();
         if(currentChunk == endChunk){
             std::pair<float,std::vector<int16_t>> fp = graph->cachedPaths[currentChunk->getIndex()][currentNode][endPoint];
@@ -138,37 +141,54 @@ void PathFinder::visitAll(int16_t currentNode, const int16_t& endPoint, float di
         }
         return;
     }
-    for(auto&[ch,b]: unvisitedChunks){
-        std::unordered_map<int64_t, int64_t> vc;
-        for(auto&[xy,ch]: graph->getChunks()){
-            vc[xy] = 0;
-        }
-        auto p = findChunkPath(currentChunk->getIndex(), ch, INT64_MAX, 0, vc, {}, 0);
+    std::unordered_map<int64_t, int64_t> vc;
+    for(auto&[xy,ch]: graph->getChunks()){
+        vc[xy] = 0;
+    }
+    //int ab = 0;
+    for(auto&[ch,b]: visitedChunks){
+        if(b) continue;
+        /*if(ab == 1){
+            break;
+        }*/
+        Chunk* chunk = currentChunk;
+        auto p = findChunkPath(chunk->getIndex(), ch, INT64_MAX, 0, vc, {}, 0);
         std::vector<int64_t> pth = p.second;
         pth.erase(pth.begin());
-        Chunk* chunk = currentChunk;
-        std::unordered_map<int64_t, bool> uc = unvisitedChunks;
+        std::unordered_map<int64_t, bool> uc = visitedChunks;
+        float dd = distance;
+        std::vector<int16_t> pp = path;
+        int16_t cn = currentNode;
+        int16_t cc = chunksCount;
         for(auto i = 0; i < pth.size(); ++i){
             int64_t c = pth[i];
             //std::cout << c << '\n';
             auto ft = chunk->connections[c];
             std::vector<std::pair<float, std::pair<std::pair<int16_t, int16_t>,std::vector<int16_t>>>> pairs;
             for(auto&p: ft){
-                auto k = graph->cachedPaths[chunk->getIndex()][currentNode][p.first];
+                //std::cout << c << ": " << cn << " " << p.first << '\n';
+                auto k = graph->cachedPaths[chunk->getIndex()][cn][p.first];
                 pairs.push_back(std::pair(k.first, std::pair(p, k.second)));
             }
             std::sort(pairs.begin(), pairs.end());
             auto p = pairs.front();
-            distance += p.first;
-            path.insert(path.end(), p.second.second.begin(), p.second.second.end());
-            path.push_back(p.second.first.second);
-            distance += graph->distanceMatrix[p.second.first.first][p.second.first.second];
-            if(uc.contains(c)) uc.erase(c);
+            dd += p.first;
+            pp.insert(pp.end(), p.second.second.begin(), p.second.second.end());
+            pp.push_back(p.second.first.second);
+            dd += graph->distanceMatrix[p.second.first.first][p.second.first.second];
+            if(!uc[c]) cc++;
+            uc[c] = true;
             chunk = graph->getChunk(c);
-            currentNode = path.back();
+            cn = pp.back();
         }
-        threadpool->assignNewTask(std::bind(&PathFinder::visitAll, this, path.back(), endPoint, distance, uc, path),1);
-        //visitAll(path.back(), endPoint, distance, uc, path);
+        //std::cout << cc << '\n';
+        if(breakAlg){
+            visitAll(cn, endPoint, dd, uc, cc, pp, breakAlg);
+            break;
+        }else{
+            threadpool->assignNewTask(std::bind(&PathFinder::visitAll, this, cn, endPoint, dd, uc, cc, pp, breakAlg),1);
+        }
+        //ab++;
     }
 }
 
@@ -184,7 +204,7 @@ std::pair<float,std::vector<int16_t>> PathFinder::findPathResursive(int16_t curr
         }
         return std::pair<float,std::vector<int16_t>>(distance,path);
     }
-    std::pair<float,std::vector<int16_t>> foundPath(minDistance,{});
+    std::pair<float,std::vector<int16_t>> foundPath(0.f,{});
     std::unordered_map<int16_t, bool> map = graph->getNode(currentNode)->getConnections();
     Node* node = graph->getNode(currentNode);
     std::vector<int16_t> vec;
@@ -196,13 +216,14 @@ std::pair<float,std::vector<int16_t>> PathFinder::findPathResursive(int16_t curr
     }
     for(auto& k: vec){
         if(k == prevNode && vec.size() > 1) continue;
-        if(k == endPoint && visitedNodes.size() != max - 1 && vec.size() > 1) continue;
-        if(visitedNodes.contains(k) && (visitedNodes[k] > 2 || (visitedNodes[currentNode] > 1)) && vec.size() > 1) continue;
+        //if(k == endPoint && visitedNodes.size() != max - 1 && vec.size() > 1) continue;
+        if(visitedNodes.contains(k) && (visitedNodes[k] > 2 || (visitedNodes[k] > 1 && visitedNodes[currentNode] > 1)) && vec.size() > 1) continue;
         Node* n = graph->getNode(k);
-        auto p = findPathResursive(k, endPoint, currentNode, distance + graph->distanceMatrix[currentNode][k], visitedNodes, path, max, foundPath.first);
-        if(foundPath.first == 0.f || (p.first > 0.f && p.first < minDistance)){
+        auto p = findPathResursive(k, endPoint, currentNode, distance + graph->distanceMatrix[currentNode][k], visitedNodes, path, max, minDistance);
+        if(minDistance == 0.f || (p.first > 0.f && p.first < minDistance)){
             foundPath.first = p.first;
             foundPath.second = p.second;
+            minDistance = p.first;
         }
     }
     return foundPath;
@@ -221,6 +242,15 @@ void PathFinder::drawPath(std::vector<int16_t>& path){
 
 void PathFinder::run(){
     while(true){
+        std::string b;
+        std::cout << "Use faster algorithm? (1 - yes, 0 - no) ";
+        std::cin >> b;
+        bool breakAlg;
+        if(b == "1"){
+            breakAlg = true;
+        }else{
+            breakAlg = false;
+        }
         std::string from,dest;
         int16_t f,d;
         std::cout << "From: ";
@@ -234,11 +264,12 @@ void PathFinder::run(){
         
         auto s2 = matplot::subplot(1, 2, 1);
 
-        std::unordered_map<int64_t, bool> unvisitedChunks;
+        std::unordered_map<int64_t, bool> visitedChunks;
         for(auto&[xy,ch]: graph->getChunks()){
-            unvisitedChunks[xy] = true;
+            visitedChunks[xy] = false;
         }
-        visitAll(f, d, 0.f, unvisitedChunks, {});
+        visitAll(f, d, 0.f, visitedChunks, 0, {}, true);
+        if(!breakAlg) visitAll(f, d, 0.f, visitedChunks, 0, {}, false);
         threadpool->wait();
         std::vector<int16_t> fixedPath;
         int16_t prev = -1;

@@ -112,13 +112,13 @@ void Graph::plot(const int16_t& node_count, const float& min_neighbors, const fl
         }
     }
     
-    /*for(auto&[xy,ch]: chunks){
+    for(auto&[xy,ch]: chunks){
         std::cout << xy << ": ";
         for(auto&[in,n]: ch->getNodes()){
             std::cout << in << " ";
         }
         std::cout << std::endl;
-    }*/
+    }
     std::cout << "Caching data..." << '\n';
     for(auto&[xy,ch]: chunks){
         for(auto&[in,n]: ch->getNodes()){
@@ -132,15 +132,15 @@ void Graph::plot(const int16_t& node_count, const float& min_neighbors, const fl
 
 void Graph::cachePaths(const int64_t& xy,const int16_t& from, const int16_t& to){
     std::pair<float,std::vector<int16_t>> p = PathFinder::getInstance()->findPathResursive(from,to,-1,0.f,{},{},chunks[xy]->getNodeCount(),0.f);
-    {
+    cachedPaths[xy][from][to] = p;
+    /*{
         std::lock_guard<std::mutex> lock(cachedPathsMutex);
-        cachedPaths[xy][from][to] = p;
-        /*std::cout << "PATHS (" << from << " to " << to << "): " << xy <<": ";
+        std::cout << "PATHS (" << from << " to " << to << "): " << xy <<": ";
         for(auto& k: cachedPaths[xy][from][to].second){
             std::cout << k << " ";
         }
-        std::cout << std::endl;*/
-    }
+        std::cout << std::endl;
+    }*/
 }
 
 size_t Graph::getChunkCount(){
