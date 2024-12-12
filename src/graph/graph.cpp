@@ -112,13 +112,13 @@ void Graph::plot(const int16_t& node_count, const float& min_neighbors, const fl
         }
     }
     
-    for(auto&[xy,ch]: chunks){
+    /*for(auto&[xy,ch]: chunks){
         std::cout << xy << ": ";
         for(auto&[in,n]: ch->getNodes()){
             std::cout << in << " ";
         }
         std::cout << std::endl;
-    }
+    }*/
     std::cout << "Caching data..." << '\n';
     for(auto&[xy,ch]: chunks){
         for(auto&[in,n]: ch->getNodes()){

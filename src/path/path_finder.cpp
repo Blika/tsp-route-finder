@@ -7,6 +7,7 @@
 #include <iostream>
 #include <queue>
 #include <random>
+#include <thread>
 #include <matplot/matplot.h>
 
 PathFinder* PathFinder::instance = nullptr;
@@ -107,7 +108,7 @@ std::pair<int16_t, std::vector<int64_t>> PathFinder::findChunkPath(int64_t curre
     return foundPath;
 }
 
-void PathFinder::visitAll(int16_t currentNode, const int16_t& endPoint, float distance, std::unordered_map<int64_t, bool> visitedChunks, int16_t chunksCount, std::vector<int16_t> path, bool breakAlg){
+void PathFinder::visitAll(int16_t currentNode, const int16_t& endPoint, float distance, std::unordered_map<int64_t, bool> visitedChunks, int16_t chunksCount, std::vector<int16_t> path, bool breakAlg, const int16_t& start, const int16_t& end){
     if((foundPath.first > 0.f && foundPath.first <= distance) || distance >= (graph->getTotalDistance() * 2)) return;
     //std::cout << chunksCount << '\n';
     Chunk* currentChunk = graph->getNode(currentNode)->getChunk();
@@ -145,12 +146,13 @@ void PathFinder::visitAll(int16_t currentNode, const int16_t& endPoint, float di
     for(auto&[xy,ch]: graph->getChunks()){
         vc[xy] = 0;
     }
-    //int ab = 0;
+    int ab = 0;
     for(auto&[ch,b]: visitedChunks){
+        ab++;
         if(b) continue;
-        /*if(ab == 1){
+        if(!(ab >= start && ab <= end) && start != -1){
             break;
-        }*/
+        }
         Chunk* chunk = currentChunk;
         auto p = findChunkPath(chunk->getIndex(), ch, INT64_MAX, 0, vc, {}, 0);
         std::vector<int64_t> pth = p.second;
@@ -183,12 +185,11 @@ void PathFinder::visitAll(int16_t currentNode, const int16_t& endPoint, float di
         }
         //std::cout << cc << '\n';
         if(breakAlg){
-            visitAll(cn, endPoint, dd, uc, cc, pp, breakAlg);
+            visitAll(cn, endPoint, dd, uc, cc, pp, true, -1, -1);
             break;
         }else{
-            threadpool->assignNewTask(std::bind(&PathFinder::visitAll, this, cn, endPoint, dd, uc, cc, pp, breakAlg),1);
+            visitAll(cn, endPoint, dd, uc, cc, pp, false, -1, -1);
         }
-        //ab++;
     }
 }
 
@@ -268,9 +269,34 @@ void PathFinder::run(){
         for(auto&[xy,ch]: graph->getChunks()){
             visitedChunks[xy] = false;
         }
-        visitAll(f, d, 0.f, visitedChunks, 0, {}, true);
-        if(!breakAlg) visitAll(f, d, 0.f, visitedChunks, 0, {}, false);
-        threadpool->wait();
+
+        if(!breakAlg){
+            int threads = std::thread::hardware_concurrency();
+            int left = visitedChunks.size();
+            int batch = static_cast<int>(std::ceil(visitedChunks.size() / threads));
+            std::vector<int16_t> pathDummy;
+            int start = -1;
+            int end;
+            while(left != 0){
+                int currentBatch = batch;
+                if(start == -1){
+                    start = 0;
+                }else{
+                    start += batch;
+                }
+                if(left < currentBatch){
+                    currentBatch = left;
+                    left = 0;
+                }else{
+                    left -= currentBatch;
+                }
+                end = start + currentBatch;
+                threadpool->assignNewTask(std::bind(&PathFinder::visitAll, this, f, d, 0.f, visitedChunks, 0, pathDummy, false, start, end),1);
+            }
+            threadpool->wait();
+        }else{
+            visitAll(f, d, 0.f, visitedChunks, 0, {}, true, -1, -1);
+        }
         std::vector<int16_t> fixedPath;
         int16_t prev = -1;
         for(auto& p: foundPath.second){
